@@ -1,13 +1,14 @@
 import { Expense, User } from '../types';
-import { getApiUrl } from '../config';
+import { getApiUrl, isProduction } from '../config';
 
 /**
- * NOTE: This service connects to the Flask backend API.
- * Automatically detects if running on mobile/desktop and uses appropriate URL.
+ * Smart storage service that automatically detects environment:
+ * - Production (Hostinger): Uses localStorage (no backend required)
+ * - Local development: Uses Flask backend API
  */
 
-const API_URL = getApiUrl(); // Automatically uses correct URL for environment
-const USE_MOCK = false; // Set to false to use real Flask backend
+const API_URL = getApiUrl();
+const USE_MOCK = isProduction() || !API_URL; // Use mock for production or when no API URL
 
 // Mock Data
 const MOCK_EXPENSES: Expense[] = [

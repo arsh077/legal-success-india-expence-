@@ -2,10 +2,11 @@
 
 // Network Configuration
 export const CONFIG = {
-  // Backend API URL - Update this IP address to match your computer's network IP
-  API_URL: 'http://192.168.1.18:5000/api',
+  // Production API URL (Update this with your Hostinger domain)
+  PRODUCTION_API_URL: 'https://ce.legalsuccessindia.com/api',
   
-  // Alternative URLs for different environments
+  // Local development URLs
+  LOCAL_API_URL: 'http://192.168.1.18:5000/api',
   LOCALHOST_URL: 'http://localhost:5000/api',
   
   // App Configuration
@@ -21,13 +22,25 @@ export const CONFIG = {
 
 // Auto-detect environment and use appropriate URL
 export const getApiUrl = () => {
-  // Check if we're on mobile/external device
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return CONFIG.API_URL; // Use network IP for mobile devices
+  // Production deployment (Hostinger) - Use mock/localStorage mode
+  if (window.location.hostname.includes('legalsuccessindia.com')) {
+    return null; // This will trigger localStorage mode in storage.ts
+  }
+  
+  // Check if we're on mobile/external device (local network)
+  if (window.location.hostname !== 'localhost' && 
+      window.location.hostname !== '127.0.0.1' &&
+      window.location.hostname.includes('192.168')) {
+    return CONFIG.LOCAL_API_URL;
   }
   
   // Use localhost for desktop development
   return CONFIG.LOCALHOST_URL;
+};
+
+// Check if we're in production mode
+export const isProduction = () => {
+  return window.location.hostname.includes('legalsuccessindia.com');
 };
 
 export default CONFIG;

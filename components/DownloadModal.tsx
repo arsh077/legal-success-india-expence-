@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Calendar, FileText, TrendingUp } from 'lucide-react';
-import { getApiUrl } from '../config';
+import { getApiUrl, isProduction } from '../config';
+import { expenseService } from '../services/storage';
 
 interface MonthData {
   key: string;
@@ -22,6 +23,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const [downloading, setDownloading] = useState<string | null>(null);
   
   const API_URL = getApiUrl();
+  const IS_PRODUCTION = isProduction();
 
   useEffect(() => {
     if (isOpen) {
@@ -32,10 +34,43 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const fetchAvailableMonths = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/months`);
-      if (response.ok) {
-        const data = await response.json();
-        setMonths(data);
+      if (IS_PRODUCTION || !API_URL) {
+        // Production mode: Generate months from localStorage data
+        const expenses = await expenseService.getAll();
+        const monthsMap = new Map();
+        
+        expenses.forEach(expense => {
+          const date = new Date(expense.date);
+          const key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+          const name = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          
+          if (!monthsMap.has(key)) {
+            monthsMap.set(key, {
+              key,
+              name,
+              year: date.getFullYear(),
+              month: date.getMonth() + 1,
+              count: 0,
+              total: 0
+            });
+          }
+          
+          const monthData = monthsMap.get(key);
+          monthData.count++;
+          monthData.total += expense.amount;
+        });
+        
+        const monthsArray = Array.from(monthsMap.values())
+          .sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month));
+        
+        setMonths(monthsArray);
+      } else {
+        // Local development: Use API
+        const response = await fetch(`${API_URL}/months`);
+        if (response.ok) {
+          const data = await response.json();
+          setMonths(data);
+        }
       }
     } catch (error) {
       console.error('Error fetching months:', error);
@@ -47,21 +82,28 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const downloadAllExpenses = async () => {
     setDownloading('all');
     try {
-      const response = await fetch(`${API_URL}/download/all`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Legal_Success_India_All_Expenses_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        // Show success message
-        showSuccessMessage('All expenses downloaded successfully!');
+      if (IS_PRODUCTION || !API_URL) {
+        // Production mode: Generate CSV from localStorage
+        const expenses = await expenseService.getAll();
+        const csvContent = generateCSV(expenses, 'All Expenses');
+        downloadCSV(csvContent, `Legal_Success_India_All_Expenses_${new Date().toISOString().split('T')[0]}.csv`);
+      } else {
+        // Local development: Use API
+        const response = await fetch(`${API_URL}/download/all`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Legal_Success_India_All_Expenses_${new Date().toISOString().split('T')[0]}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       }
+      
+      showSuccessMessage('All expenses downloaded successfully!');
     } catch (error) {
       console.error('Error downloading all expenses:', error);
       showErrorMessage('Failed to download expenses');
@@ -74,27 +116,83 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
     const key = `${year}-${month}`;
     setDownloading(key);
     try {
-      const response = await fetch(`${API_URL}/download/monthly/${year}/${month}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Legal_Success_India_${monthName.replace(' ', '_')}_Expenses.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      if (IS_PRODUCTION || !API_URL) {
+        // Production mode: Generate CSV from localStorage
+        const allExpenses = await expenseService.getAll();
+        const monthlyExpenses = allExpenses.filter(expense => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate.getFullYear() === year && expenseDate.getMonth() + 1 === month;
+        });
         
-        // Show success message
-        showSuccessMessage(`${monthName} expenses downloaded successfully!`);
+        const csvContent = generateMonthlyCSV(monthlyExpenses, monthName);
+        downloadCSV(csvContent, `Legal_Success_India_${monthName.replace(' ', '_')}_Expenses.csv`);
+      } else {
+        // Local development: Use API
+        const response = await fetch(`${API_URL}/download/monthly/${year}/${month}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Legal_Success_India_${monthName.replace(' ', '_')}_Expenses.csv`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       }
+      
+      showSuccessMessage(`${monthName} expenses downloaded successfully!`);
     } catch (error) {
       console.error('Error downloading monthly expenses:', error);
       showErrorMessage('Failed to download monthly expenses');
     } finally {
       setDownloading(null);
     }
+  };
+
+  // Helper functions for CSV generation in production
+  const generateCSV = (expenses: any[], title: string) => {
+    const headers = ['Date', 'Amount (₹)', 'Reason', 'Timestamp'];
+    const rows = expenses.map(expense => [
+      expense.date,
+      expense.amount,
+      expense.reason,
+      expense.timestamp
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  };
+
+  const generateMonthlyCSV = (expenses: any[], monthName: string) => {
+    const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const avgAmount = expenses.length > 0 ? totalAmount / expenses.length : 0;
+    
+    const lines = [
+      `Legal Success India - Monthly Expense Report - ${monthName}`,
+      '',
+      'Date,Amount (₹),Reason,Timestamp',
+      ...expenses.map(expense => `${expense.date},${expense.amount},${expense.reason},${expense.timestamp}`),
+      '',
+      'Summary',
+      `Total Transactions,${expenses.length}`,
+      `Total Amount (₹),${totalAmount}`,
+      `Average per Transaction (₹),${avgAmount.toFixed(2)}`
+    ];
+    
+    return lines.join('\n');
+  };
+
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const showSuccessMessage = (message: string) => {
