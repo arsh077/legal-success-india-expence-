@@ -12,22 +12,41 @@ const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger to reload dashboard
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   // Check for existing session
   useEffect(() => {
-    const savedUser = localStorage.getItem('user_session');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    // Check system preference for dark mode
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
+    const initializeApp = async () => {
+      try {
+        const savedUser = localStorage.getItem('user_session');
+        if (savedUser) {
+          try {
+            const parsedUser = JSON.parse(savedUser);
+            console.log('Restored user session:', parsedUser);
+            setUser(parsedUser);
+          } catch (error) {
+            console.error('Failed to parse saved user session:', error);
+            localStorage.removeItem('user_session');
+          }
+        }
+        
+        // Check system preference for dark mode
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          setIsDarkMode(true);
+          document.documentElement.classList.add('dark');
+        }
+      } catch (error) {
+        console.error('App initialization error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeApp();
   }, []);
 
   const handleLogin = (loggedInUser: User) => {
+    console.log('Login successful:', loggedInUser);
     setUser(loggedInUser);
     localStorage.setItem('user_session', JSON.stringify(loggedInUser));
   };
@@ -57,6 +76,18 @@ const App: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   };
+
+  // Show loading screen while initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading Legal Success India...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If not logged in, show Login page
   if (!user) {

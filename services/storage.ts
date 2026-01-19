@@ -29,13 +29,16 @@ const MOCK_EXPENSES: Expense[] = [
 export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     if (IS_PRODUCTION) {
-      // Production: Use Firebase Authentication
+      // Production: Try Firebase first, fallback to simple credential check
       try {
+        console.log('Attempting Firebase login...');
         return await firebaseSync.login(email, password);
       } catch (error) {
+        console.warn('Firebase login failed, using fallback:', error);
         // Fallback to simple credential check
         if (email === 'arshad@legalsuccessindia.com' && password === 'Khurshid@1997') {
-          return { email, name: 'Arshad Khan', token: 'production-token' };
+          console.log('Fallback authentication successful');
+          return { email, name: 'Arshad Khan', token: 'fallback-token-' + Date.now() };
         } else {
           throw new Error('Invalid credentials');
         }
@@ -49,7 +52,11 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('user_session');
     if (IS_PRODUCTION) {
-      firebaseSync.logout();
+      try {
+        firebaseSync.logout();
+      } catch (error) {
+        console.warn('Firebase logout failed:', error);
+      }
     }
   }
 };
