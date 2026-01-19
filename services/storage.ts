@@ -1,23 +1,23 @@
 import { Expense, User } from '../types';
 import { getApiUrl, isProduction } from '../config';
 import SyncStorageService from './syncStorage';
-import QRSyncService from './qrSync';
+import FirebaseSyncService from './firebaseSync';
 
 /**
- * Smart storage service with QR code sync:
- * - Production: Uses QR codes for visual sync between devices
- * - Local: Uses backend with localStorage backup
+ * Smart storage service with Firebase real-time sync:
+ * - Production: Uses Firebase for real-time sync between devices
+ * - Local: Uses backend with Firebase backup
  */
 
 const API_URL = getApiUrl();
 const IS_PRODUCTION = isProduction();
 
 // Create appropriate service based on environment
-const qrSync = new QRSyncService();
+const firebaseSync = new FirebaseSyncService();
 const syncService = new SyncStorageService(API_URL, IS_PRODUCTION);
 
-// Make QR sync globally available
-(window as any).qrSync = qrSync;
+// Initialize Firebase
+firebaseSync.initialize();
 
 // Mock Data for fallback
 const MOCK_EXPENSES: Expense[] = [
@@ -29,11 +29,16 @@ const MOCK_EXPENSES: Expense[] = [
 export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     if (IS_PRODUCTION) {
-      // Production: Simple credential check
-      if (email === 'arshad@legalsuccessindia.com' && password === 'Khurshid@1997') {
-        return { email, name: 'Arshad Khan', token: 'production-token' };
-      } else {
-        throw new Error('Invalid credentials');
+      // Production: Use Firebase Authentication
+      try {
+        return await firebaseSync.login(email, password);
+      } catch (error) {
+        // Fallback to simple credential check
+        if (email === 'arshad@legalsuccessindia.com' && password === 'Khurshid@1997') {
+          return { email, name: 'Arshad Khan', token: 'production-token' };
+        } else {
+          throw new Error('Invalid credentials');
+        }
       }
     } else {
       // Local: Use sync service
@@ -43,6 +48,9 @@ export const authService = {
 
   logout: () => {
     localStorage.removeItem('user_session');
+    if (IS_PRODUCTION) {
+      firebaseSync.logout();
+    }
   }
 };
 
@@ -50,8 +58,8 @@ export const expenseService = {
   getAll: async (): Promise<Expense[]> => {
     try {
       if (IS_PRODUCTION) {
-        // Production: Use QR sync service
-        return qrSync.getExpenses();
+        // Production: Use Firebase sync service
+        return await firebaseSync.getExpenses();
       } else {
         // Local: Use sync service
         return await syncService.getAll();
@@ -65,8 +73,8 @@ export const expenseService = {
   add: async (expense: Omit<Expense, 'id' | 'timestamp'>): Promise<Expense> => {
     try {
       if (IS_PRODUCTION) {
-        // Production: Use QR sync service
-        return qrSync.addExpense(expense);
+        // Production: Use Firebase sync service
+        return await firebaseSync.addExpense(expense);
       } else {
         // Local: Use sync service
         return await syncService.add(expense);
@@ -80,8 +88,8 @@ export const expenseService = {
   delete: async (id: string): Promise<void> => {
     try {
       if (IS_PRODUCTION) {
-        // Production: Use QR sync service
-        qrSync.deleteExpense(id);
+        // Production: Use Firebase sync service
+        await firebaseSync.deleteExpense(id);
       } else {
         // Local: Use sync service
         await syncService.delete(id);
@@ -96,8 +104,8 @@ export const expenseService = {
   sync: async (): Promise<void> => {
     try {
       if (IS_PRODUCTION) {
-        // Production: Show QR sync modal
-        qrSync.showQRSyncModal();
+        // Production: Force Firebase sync
+        await firebaseSync.forceSync();
       } else {
         // Local: Use sync service
         await syncService.syncData();
@@ -107,18 +115,18 @@ export const expenseService = {
     }
   },
 
-  // Import sync code (for production)
-  importSyncCode: (syncCode: string) => {
+  // Setup real-time listener (Firebase only)
+  setupRealtimeSync: (callback: (expenses: Expense[]) => void) => {
     if (IS_PRODUCTION) {
-      return qrSync.importSyncCode(syncCode);
+      return firebaseSync.setupRealtimeListener(callback);
     }
-    return false;
+    return null;
   },
 
   // Get sync status
   getSyncStatus: () => {
     if (IS_PRODUCTION) {
-      return qrSync.getSyncStatus();
+      return firebaseSync.getSyncStatus();
     } else {
       return syncService.getSyncStatus();
     }

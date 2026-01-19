@@ -1,60 +1,95 @@
 /**
- * Firebase Firestore Sync - Backend-free real-time sync
- * Uses Firebase free tier for cross-device synchronization
+ * Firebase Firestore Sync - Real-time cross-device sync
+ * Uses Firebase free tier for seamless mobile-laptop synchronization
  */
 
 import { Expense } from '../types';
 
-// Firebase configuration (free tier)
+// Firebase configuration - Update with your actual project details
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBvOQIFb5eR4FqYjVxGHnKpL8mN2oP3qRs", // Public API key (safe to expose)
-  authDomain: "legal-success-expenses.firebaseapp.com",
-  projectId: "legal-success-expenses",
-  storageBucket: "legal-success-expenses.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef123456789012345678"
+  apiKey: "your-api-key", // Get from Firebase Project Settings
+  authDomain: "expense-project-id.firebaseapp.com", // Replace with your project ID
+  projectId: "expense", // Your actual project ID
+  storageBucket: "expense-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
 };
 
 class FirebaseSyncService {
   private db: any = null;
+  private auth: any = null;
   private initialized = false;
+  private user: any = null;
 
   async initialize() {
     if (this.initialized) return;
 
     try {
-      // Dynamically import Firebase (CDN)
-      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js');
-      const { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot } = 
-        await import('https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js');
+      // Import Firebase modules
+      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+      const { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, orderBy } = 
+        await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+      const { getAuth, signInWithEmailAndPassword, onAuthStateChanged } = 
+        await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
 
       const app = initializeApp(FIREBASE_CONFIG);
       this.db = getFirestore(app);
-      this.initialized = true;
-      console.log('Firebase initialized successfully');
+      this.auth = getAuth(app);
+      
+      // Check if user is already logged in
+      return new Promise((resolve) => {
+        onAuthStateChanged(this.auth, (user) => {
+          this.user = user;
+          this.initialized = true;
+          console.log('Firebase initialized successfully', user ? 'with user' : 'without user');
+          resolve(true);
+        });
+      });
     } catch (error) {
       console.error('Firebase initialization failed:', error);
       this.initialized = false;
+      return false;
+    }
+  }
+
+  async login(email: string, password: string) {
+    await this.initialize();
+    
+    try {
+      const { signInWithEmailAndPassword } = 
+        await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+      
+      const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+      this.user = userCredential.user;
+      console.log('Firebase login successful');
+      return {
+        email: this.user.email,
+        name: 'Arshad Khan',
+        token: await this.user.getIdToken()
+      };
+    } catch (error) {
+      console.error('Firebase login failed:', error);
+      throw new Error('Invalid credentials or network error');
     }
   }
 
   async getExpenses(): Promise<Expense[]> {
-    if (!this.initialized) {
+    if (!this.initialized || !this.user) {
       return this.getLocalExpenses();
     }
 
     try {
-      const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js');
-      const querySnapshot = await getDocs(collection(this.db, 'expenses'));
+      const { getDocs, collection, query, orderBy } = 
+        await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+      
+      const q = query(collection(this.db, 'expenses'), orderBy('timestamp', 'desc'));
+      const querySnapshot = await getDocs(q);
       const expenses: Expense[] = [];
       
       querySnapshot.forEach((doc) => {
         expenses.push({ id: doc.id, ...doc.data() } as Expense);
       });
 
-      // Sort by timestamp
-      expenses.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
       // Backup to localStorage
       this.saveLocalExpenses(expenses);
       
@@ -77,17 +112,28 @@ class FirebaseSyncService {
     localExpenses.unshift(newExpense);
     this.saveLocalExpenses(localExpenses);
 
-    // Try to sync with Firebase
-    if (this.initialized) {
+    // Try to sync with Firebase if logged in
+    if (this.initialized && this.user) {
       try {
-        const { addDoc, collection } = await import('https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js');
-        await addDoc(collection(this.db, 'expenses'), {
+        const { addDoc, collection } = 
+          await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const docRef = await addDoc(collection(this.db, 'expenses'), {
           date: newExpense.date,
           amount: newExpense.amount,
           reason: newExpense.reason,
-          timestamp: newExpense.timestamp
+          timestamp: newExpense.timestamp,
+          userId: this.user.uid
         });
-        console.log('Expense synced to Firebase');
+        
+        // Update local expense with Firebase ID
+        newExpense.id = docRef.id;
+        const updatedExpenses = localExpenses.map(e => 
+          e.timestamp === newExpense.timestamp ? newExpense : e
+        );
+        this.saveLocalExpenses(updatedExpenses);
+        
+        console.log('Expense synced to Firebase with ID:', docRef.id);
       } catch (error) {
         console.error('Firebase sync failed:', error);
       }
@@ -102,15 +148,42 @@ class FirebaseSyncService {
     const filtered = localExpenses.filter(e => e.id !== id);
     this.saveLocalExpenses(filtered);
 
-    // Try to delete from Firebase
-    if (this.initialized) {
+    // Try to delete from Firebase if logged in
+    if (this.initialized && this.user) {
       try {
-        const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js');
+        const { deleteDoc, doc } = 
+          await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
         await deleteDoc(doc(this.db, 'expenses', id));
         console.log('Expense deleted from Firebase');
       } catch (error) {
         console.error('Firebase delete failed:', error);
       }
+    }
+  }
+
+  // Real-time listener for expenses
+  async setupRealtimeListener(callback: (expenses: Expense[]) => void) {
+    if (!this.initialized || !this.user) return;
+
+    try {
+      const { collection, onSnapshot, query, orderBy } = 
+        await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+      
+      const q = query(collection(this.db, 'expenses'), orderBy('timestamp', 'desc'));
+      
+      return onSnapshot(q, (snapshot) => {
+        const expenses: Expense[] = [];
+        snapshot.forEach((doc) => {
+          expenses.push({ id: doc.id, ...doc.data() } as Expense);
+        });
+        
+        // Update localStorage backup
+        this.saveLocalExpenses(expenses);
+        callback(expenses);
+      });
+    } catch (error) {
+      console.error('Failed to setup realtime listener:', error);
     }
   }
 
@@ -173,15 +246,15 @@ class FirebaseSyncService {
   getSyncStatus() {
     return {
       lastSync: localStorage.getItem('legal_success_last_sync'),
-      isOnline: this.initialized,
-      hasData: this.getLocalExpenses().length > 0
+      isOnline: this.initialized && !!this.user,
+      hasData: this.getLocalExpenses().length > 0,
+      user: this.user?.email || null
     };
   }
 
   async forceSync(): Promise<boolean> {
     try {
-      await this.initialize();
-      if (this.initialized) {
+      if (this.initialized && this.user) {
         // Refresh data from Firebase
         await this.getExpenses();
         return true;
@@ -191,6 +264,13 @@ class FirebaseSyncService {
       console.error('Force sync failed:', error);
       return false;
     }
+  }
+
+  logout() {
+    if (this.auth) {
+      this.auth.signOut();
+    }
+    this.user = null;
   }
 }
 

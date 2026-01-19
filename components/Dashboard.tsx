@@ -14,9 +14,10 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{lastSync: string | null, isOnline: boolean}>({
+  const [syncStatus, setSyncStatus] = useState<{lastSync: string | null, isOnline: boolean, user?: string | null}>({
     lastSync: null,
-    isOnline: false
+    isOnline: false,
+    user: null
   });
 
   // Load Data / Data load karein
@@ -31,6 +32,20 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         
         // Update sync status
         setSyncStatus(expenseService.getSyncStatus());
+
+        // Setup real-time listener for Firebase
+        const unsubscribe = expenseService.setupRealtimeSync?.((updatedExpenses) => {
+          const sorted = updatedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setExpenses(sorted);
+          setSyncStatus(expenseService.getSyncStatus());
+        });
+
+        // Cleanup listener on unmount
+        return () => {
+          if (unsubscribe && typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        };
       } catch (error) {
         console.error("Failed to fetch expenses", error);
       } finally {
@@ -284,7 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Last synced: {new Date(syncStatus.lastSync).toLocaleString()} 
             {syncStatus.isOnline ? (
-              <span className="ml-2 text-green-500">• Online</span>
+              <span className="ml-2 text-green-500">• Online {syncStatus.user ? `(${syncStatus.user})` : ''}</span>
             ) : (
               <span className="ml-2 text-gray-400">• Offline</span>
             )}
