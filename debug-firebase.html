@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Debug Test</title>
+</head>
+<body>
+    <h1>Firebase Connection Test</h1>
+    <div id="status">Testing...</div>
+    <button onclick="testLogin()">Test Login</button>
+    
+    <script type="module">
+        // Your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKNh4_wclRgGZ0VkxmBMwP3aoX02MwZVg",
+            authDomain: "expense-14b79.firebaseapp.com",
+            projectId: "expense-14b79",
+            storageBucket: "expense-14b79.firebasestorage.app",
+            messagingSenderId: "11505612446",
+            appId: "1:11505612446:web:a06cd8519d33465852ad8f",
+            measurementId: "G-TKWM65ZPE9"
+        };
+
+        // Test Firebase connection
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        document.getElementById('status').innerHTML = 'Firebase initialized successfully!';
+
+        window.testLogin = async function() {
+            try {
+                console.log('Testing login...');
+                const userCredential = await signInWithEmailAndPassword(auth, 'arshad@legalsuccessindia.com', 'Khurshid@1997');
+                console.log('Login successful:', userCredential.user);
+                document.getElementById('status').innerHTML = 'Login successful! User: ' + userCredential.user.email;
+                
+                // Test Firestore
+                const querySnapshot = await getDocs(collection(db, 'expenses'));
+                console.log('Firestore data:', querySnapshot.size, 'documents');
+                document.getElementById('status').innerHTML += '<br>Firestore: ' + querySnapshot.size + ' expenses found';
+            } catch (error) {
+                console.error('Login failed:', error);
+                document.getElementById('status').innerHTML = 'Login failed: ' + error.message;
+            }
+        };
+    </script>
+</body>
+</html>

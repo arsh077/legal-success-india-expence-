@@ -19,10 +19,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setLoading(true);
     setError('');
 
+    console.log('Login attempt:', { email, password: '***' });
+
     try {
       const user = await authService.login(email, password);
+      console.log('Login successful:', user);
       onLogin(user);
     } catch (err) {
+      console.error('Login error:', err);
       setError('Invalid credentials. Please try again.');
       setShake(true);
       setTimeout(() => setShake(false), 500); // Reset shake class
