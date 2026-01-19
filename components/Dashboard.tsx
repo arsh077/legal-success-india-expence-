@@ -4,6 +4,7 @@ import { expenseService } from '../services/storage';
 import { Trash2, TrendingUp, Calendar, AlertCircle, PieChart, Download, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import DownloadModal from './DownloadModal';
+import ManualSyncModal from './ManualSyncModal';
 
 interface DashboardProps {
   refreshTrigger: number; // Used to reload data when expense is added
@@ -13,11 +14,11 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{lastSync: string | null, isOnline: boolean, user?: string | null}>({
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{lastSync: string | null, isOnline: boolean, syncSource?: string | null}>({
     lastSync: null,
     isOnline: false,
-    user: null
+    syncSource: null
   });
 
   // Load Data / Data load karein
@@ -32,20 +33,6 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         
         // Update sync status
         setSyncStatus(expenseService.getSyncStatus());
-
-        // Setup real-time listener for Firebase
-        const unsubscribe = expenseService.setupRealtimeSync?.((updatedExpenses) => {
-          const sorted = updatedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          setExpenses(sorted);
-          setSyncStatus(expenseService.getSyncStatus());
-        });
-
-        // Cleanup listener on unmount
-        return () => {
-          if (unsubscribe && typeof unsubscribe === 'function') {
-            unsubscribe();
-          }
-        };
       } catch (error) {
         console.error("Failed to fetch expenses", error);
       } finally {
@@ -65,33 +52,12 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
     }
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      await expenseService.sync();
-      // Refresh data after sync
-      const data = await expenseService.getAll();
-      const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setExpenses(sorted);
-      setSyncStatus(expenseService.getSyncStatus());
-      
-      // Show success message
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded shadow-lg animate-fade-in z-50';
-      toast.innerText = 'Data synced successfully!';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
-    } catch (error) {
-      console.error('Sync failed:', error);
-      // Show error message
-      const toast = document.createElement('div');
-      toast.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded shadow-lg animate-fade-in z-50';
-      toast.innerText = 'Sync failed. Please try again.';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
-    } finally {
-      setSyncing(false);
-    }
+  const handleSyncComplete = async () => {
+    // Refresh data after sync
+    const data = await expenseService.getAll();
+    const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setExpenses(sorted);
+    setSyncStatus(expenseService.getSyncStatus());
   };
 
   // Calculate Stats
@@ -202,18 +168,17 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
               <h3 className="text-lg font-bold text-gray-800 dark:text-white">Recent Expenses</h3>
               <div className="flex items-center space-x-2">
                 {syncStatus.isOnline ? (
-                  <Wifi className="h-4 w-4 text-green-500" title="Online" />
+                  <Wifi className="h-4 w-4 text-green-500" title="Backend Connected" />
                 ) : (
-                  <WifiOff className="h-4 w-4 text-gray-400" title="Offline" />
+                  <WifiOff className="h-4 w-4 text-gray-400" title="Local Storage Only" />
                 )}
                 <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className="flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white text-xs rounded transition-colors"
-                  title="Sync data between devices"
+                  onClick={() => setIsSyncModalOpen(true)}
+                  className="flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+                  title="Manual sync between devices"
                 >
-                  <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Syncing...' : 'Sync'}
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Sync
                 </button>
               </div>
             </div>
@@ -298,10 +263,13 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Last synced: {new Date(syncStatus.lastSync).toLocaleString()} 
+            {syncStatus.syncSource && (
+              <span className="ml-2 text-blue-500">• From {syncStatus.syncSource}</span>
+            )}
             {syncStatus.isOnline ? (
-              <span className="ml-2 text-green-500">• Online {syncStatus.user ? `(${syncStatus.user})` : ''}</span>
+              <span className="ml-2 text-green-500">• Backend Connected</span>
             ) : (
-              <span className="ml-2 text-gray-400">• Offline</span>
+              <span className="ml-2 text-gray-400">• Local Storage</span>
             )}
           </p>
         </div>
@@ -311,6 +279,13 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
       <DownloadModal 
         isOpen={isDownloadModalOpen} 
         onClose={() => setIsDownloadModalOpen(false)} 
+      />
+
+      {/* Manual Sync Modal */}
+      <ManualSyncModal 
+        isOpen={isSyncModalOpen} 
+        onClose={() => setIsSyncModalOpen(false)} 
+        onSyncComplete={handleSyncComplete}
       />
     </main>
   );

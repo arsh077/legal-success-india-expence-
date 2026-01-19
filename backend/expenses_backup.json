@@ -1,16 +1,1 @@
-[
-  {
-    "id": "1",
-    "date": "2025-12-15",
-    "amount": 2500.0,
-    "reason": "Client Meeting",
-    "timestamp": "2026-01-19T14:44:41.084324"
-  },
-  {
-    "id": "2",
-    "date": "2025-11-20",
-    "amount": 800.0,
-    "reason": "Travel Expenses",
-    "timestamp": "2026-01-19T14:45:11.647262"
-  }
-]
+[]
