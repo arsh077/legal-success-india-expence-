@@ -21,7 +21,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onOpenAddExpense, isDar
         <div className="flex justify-between h-16">
           
           {/* Logo / Branding */}
-          <div className="flex items-center">
+          <div className="flex items-center space-x-3">
+            <img src="/logo.svg" alt="Legal Success India" className="h-10 w-10" />
             <span className="text-xl sm:text-2xl font-bold text-primary dark:text-emerald-400 truncate">
               Legal Success India
             </span>

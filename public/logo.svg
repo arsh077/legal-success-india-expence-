@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="190" fill="white" stroke="#000" stroke-width="2"/>
+  
+  <!-- Outer text "LEGAL SUCCESS INDIA" -->
+  <path id="outer-circle" d="M 200,200 m -160,0 a 160,160 0 1,1 320,0 a 160,160 0 1,1 -320,0" fill="none"/>
+  <text font-family="serif" font-size="24" font-weight="bold" fill="black">
+    <textPath href="#outer-circle" startOffset="0%">LEGAL SUCCESS INDIA</textPath>
+  </text>
+  
+  <!-- Laurel wreath left -->
+  <g transform="translate(80,200)">
+    <path d="M0,0 Q-10,-20 -5,-40 Q0,-35 5,-40 Q10,-20 0,0" fill="black"/>
+    <path d="M5,-10 Q-5,-30 0,-50 Q5,-45 10,-50 Q15,-30 5,-10" fill="black"/>
+    <path d="M10,-20 Q0,-40 5,-60 Q10,-55 15,-60 Q20,-40 10,-20" fill="black"/>
+    <path d="M15,-30 Q5,-50 10,-70 Q15,-65 20,-70 Q25,-50 15,-30" fill="black"/>
+    <path d="M20,-40 Q10,-60 15,-80 Q20,-75 25,-80 Q30,-60 20,-40" fill="black"/>
+  </g>
+  
+  <!-- Laurel wreath right -->
+  <g transform="translate(320,200) scale(-1,1)">
+    <path d="M0,0 Q-10,-20 -5,-40 Q0,-35 5,-40 Q10,-20 0,0" fill="black"/>
+    <path d="M5,-10 Q-5,-30 0,-50 Q5,-45 10,-50 Q15,-30 5,-10" fill="black"/>
+    <path d="M10,-20 Q0,-40 5,-60 Q10,-55 15,-60 Q20,-40 10,-20" fill="black"/>
+    <path d="M15,-30 Q5,-50 10,-70 Q15,-65 20,-70 Q25,-50 15,-30" fill="black"/>
+    <path d="M20,-40 Q10,-60 15,-80 Q20,-75 25,-80 Q30,-60 20,-40" fill="black"/>
+  </g>
+  
+  <!-- Justice scales -->
+  <g transform="translate(200,200)">
+    <!-- Scale base -->
+    <rect x="-3" y="20" width="6" height="40" fill="black"/>
+    <ellipse cx="0" cy="65" rx="25" ry="8" fill="black"/>
+    
+    <!-- Scale beam -->
+    <rect x="-50" y="15" width="100" height="4" fill="black"/>
+    
+    <!-- Left scale -->
+    <line x1="-40" y1="19" x2="-40" y2="35" stroke="black" stroke-width="2"/>
+    <ellipse cx="-40" cy="40" rx="15" ry="5" fill="black"/>
+    
+    <!-- Right scale -->
+    <line x1="40" y1="19" x2="40" y2="35" stroke="black" stroke-width="2"/>
+    <ellipse cx="40" cy="40" rx="15" ry="5" fill="black"/>
+    
+    <!-- Scale chains -->
+    <line x1="-50" y1="17" x2="-40" y2="35" stroke="black" stroke-width="1"/>
+    <line x1="-30" y1="17" x2="-40" y2="35" stroke="black" stroke-width="1"/>
+    <line x1="30" y1="17" x2="40" y2="35" stroke="black" stroke-width="1"/>
+    <line x1="50" y1="17" x2="40" y2="35" stroke="black" stroke-width="1"/>
+  </g>
+  
+  <!-- Bottom wave -->
+  <path d="M50,320 Q100,300 150,320 T250,320 T350,320" stroke="black" stroke-width="3" fill="none"/>
+  
+  <!-- Bottom text -->
+  <text x="200" y="350" text-anchor="middle" font-family="serif" font-size="18" font-weight="bold" fill="black">LEGAL WORKS</text>
+  <text x="200" y="375" text-anchor="middle" font-family="serif" font-size="14" fill="black">PRIVATE LIMITED</text>
+</svg>

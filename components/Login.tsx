@@ -35,9 +35,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-            {/* Branding Logo Placeholder */}
-            <div className="mx-auto h-16 w-16 bg-gradient-to-tr from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg mb-4">
-               <span className="text-white font-bold text-2xl">L</span>
+            {/* Legal Success India Logo */}
+            <div className="mx-auto h-20 w-20 mb-4 flex items-center justify-center">
+               <img src="/logo.svg" alt="Legal Success India" className="h-full w-full" />
             </div>
             <h2 className="mt-2 text-3xl font-extrabold text-gray-900 dark:text-white">
             Legal Success India
