@@ -5,14 +5,15 @@
 
 import { Expense } from '../types';
 
-// Firebase configuration - Update with your actual project details
+// Firebase configuration - Your actual project details
 const FIREBASE_CONFIG = {
-  apiKey: "your-api-key", // Get from Firebase Project Settings
-  authDomain: "expense-project-id.firebaseapp.com", // Replace with your project ID
-  projectId: "expense", // Your actual project ID
-  storageBucket: "expense-project-id.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+  apiKey: "AIzaSyBKNh4_wclRgGZ0VkxmBMwP3aoX02MwZVg",
+  authDomain: "expense-14b79.firebaseapp.com",
+  projectId: "expense-14b79",
+  storageBucket: "expense-14b79.firebasestorage.app",
+  messagingSenderId: "11505612446",
+  appId: "1:11505612446:web:a06cd8519d33465852ad8f",
+  measurementId: "G-TKWM65ZPE9"
 };
 
 class FirebaseSyncService {
