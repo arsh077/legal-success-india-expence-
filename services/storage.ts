@@ -1,14 +1,12 @@
 import { Expense, User } from '../types';
+import { getApiUrl } from '../config';
 
 /**
- * NOTE: This service currently simulates a backend using LocalStorage for the demo.
- * In production, replace the fetch calls to point to your Flask backend (backend/app.py).
- * 
- * Hindi: Filhal ye demo ke liye LocalStorage use kar raha hai. 
- * Production me isko Flask API endpoints se replace karein.
+ * NOTE: This service connects to the Flask backend API.
+ * Automatically detects if running on mobile/desktop and uses appropriate URL.
  */
 
-const API_URL = 'http://localhost:5000/api'; // Flask backend URL placeholder
+const API_URL = getApiUrl(); // Automatically uses correct URL for environment
 const USE_MOCK = false; // Set to false to use real Flask backend
 
 // Mock Data

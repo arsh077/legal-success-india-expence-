@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Calendar, FileText, TrendingUp } from 'lucide-react';
+import { getApiUrl } from '../config';
 
 interface MonthData {
   key: string;
@@ -19,6 +20,8 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const [months, setMonths] = useState<MonthData[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  
+  const API_URL = getApiUrl();
 
   useEffect(() => {
     if (isOpen) {
@@ -29,7 +32,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const fetchAvailableMonths = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/months');
+      const response = await fetch(`${API_URL}/months`);
       if (response.ok) {
         const data = await response.json();
         setMonths(data);
@@ -44,7 +47,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const downloadAllExpenses = async () => {
     setDownloading('all');
     try {
-      const response = await fetch('http://localhost:5000/api/download/all');
+      const response = await fetch(`${API_URL}/download/all`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -71,7 +74,7 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
     const key = `${year}-${month}`;
     setDownloading(key);
     try {
-      const response = await fetch(`http://localhost:5000/api/download/monthly/${year}/${month}`);
+      const response = await fetch(`${API_URL}/download/monthly/${year}/${month}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
