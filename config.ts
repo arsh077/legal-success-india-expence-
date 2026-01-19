@@ -22,9 +22,9 @@ export const CONFIG = {
 
 // Auto-detect environment and use appropriate URL
 export const getApiUrl = () => {
-  // Production deployment (Hostinger) - Use mock/localStorage mode
+  // Production deployment (Hostinger) - Force localStorage mode
   if (window.location.hostname.includes('legalsuccessindia.com')) {
-    return null; // This will trigger localStorage mode in storage.ts
+    return null; // Force localStorage mode - no backend needed
   }
   
   // Check if we're on mobile/external device (local network)
@@ -41,6 +41,11 @@ export const getApiUrl = () => {
 // Check if we're in production mode
 export const isProduction = () => {
   return window.location.hostname.includes('legalsuccessindia.com');
+};
+
+// For production, we'll use a shared localStorage key that can sync via manual export/import
+export const getSharedStorageKey = () => {
+  return 'legal_success_shared_expenses';
 };
 
 export default CONFIG;
