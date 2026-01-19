@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
 import { expenseService } from '../services/storage';
-import { Trash2, TrendingUp, Calendar, AlertCircle, PieChart } from 'lucide-react';
+import { Trash2, TrendingUp, Calendar, AlertCircle, PieChart, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import DownloadModal from './DownloadModal';
 
 interface DashboardProps {
   refreshTrigger: number; // Used to reload data when expense is added
@@ -11,6 +12,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   // Load Data / Data load karein
   useEffect(() => {
@@ -94,14 +96,32 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
               <Calendar className="text-secondary" size={24} />
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-4">Recorded in system</p>
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-gray-400">Recorded in system</p>
+            <button
+              onClick={() => setIsDownloadModalOpen(true)}
+              className="flex items-center px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg transition-colors"
+            >
+              <Download className="h-3 w-3 mr-1" />
+              Export
+            </button>
+          </div>
         </div>
 
         {/* Monthly Summary List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 overflow-hidden transform transition hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-bold text-gray-800 dark:text-white">Monthly Summary</h4>
-            <PieChart className="text-purple-500" size={20} />
+            <div className="flex items-center space-x-2">
+              <PieChart className="text-purple-500" size={20} />
+              <button
+                onClick={() => setIsDownloadModalOpen(true)}
+                className="flex items-center px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded-lg transition-colors"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Reports
+              </button>
+            </div>
           </div>
           <div className="space-y-3 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
             {monthlyData.length > 0 ? (
@@ -199,6 +219,12 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         </div>
 
       </div>
+
+      {/* Download Modal */}
+      <DownloadModal 
+        isOpen={isDownloadModalOpen} 
+        onClose={() => setIsDownloadModalOpen(false)} 
+      />
     </main>
   );
 };

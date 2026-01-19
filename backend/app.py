@@ -1,7 +1,9 @@
 import os
 import datetime
 import json
-from flask import Flask, request, jsonify
+import csv
+import io
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 import gspread
@@ -220,6 +222,150 @@ def delete_expense(id):
 def health_check():
     """Health check endpoint"""
     return jsonify({'status': 'healthy', 'message': 'Legal Success India Expense Tracker API'}), 200
+
+@app.route('/api/download/all', methods=['GET'])
+def download_all_expenses():
+    """Download all expenses as CSV"""
+    try:
+        expenses = load_local_expenses()
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        writer.writerow(['Date', 'Amount (₹)', 'Reason', 'Timestamp'])
+        
+        # Write data
+        for expense in expenses:
+            writer.writerow([
+                expense['date'],
+                expense['amount'],
+                expense['reason'],
+                expense['timestamp']
+            ])
+        
+        # Convert to bytes
+        output.seek(0)
+        csv_data = output.getvalue()
+        output.close()
+        
+        # Create file-like object
+        csv_file = io.BytesIO(csv_data.encode('utf-8'))
+        csv_file.seek(0)
+        
+        filename = f"Legal_Success_India_All_Expenses_{datetime.datetime.now().strftime('%Y%m%d')}.csv"
+        
+        return send_file(
+            csv_file,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"Error generating CSV: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/download/monthly/<year>/<month>', methods=['GET'])
+def download_monthly_expenses(year, month):
+    """Download monthly expenses as CSV"""
+    try:
+        expenses = load_local_expenses()
+        
+        # Filter expenses for the specific month
+        monthly_expenses = []
+        for expense in expenses:
+            expense_date = datetime.datetime.fromisoformat(expense['date'].replace('Z', '+00:00'))
+            if expense_date.year == int(year) and expense_date.month == int(month):
+                monthly_expenses.append(expense)
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers with month info
+        month_name = datetime.datetime(int(year), int(month), 1).strftime('%B %Y')
+        writer.writerow([f'Legal Success India - Monthly Expense Report - {month_name}'])
+        writer.writerow([])  # Empty row
+        writer.writerow(['Date', 'Amount (₹)', 'Reason', 'Timestamp'])
+        
+        # Write data
+        total_amount = 0
+        for expense in monthly_expenses:
+            writer.writerow([
+                expense['date'],
+                expense['amount'],
+                expense['reason'],
+                expense['timestamp']
+            ])
+            total_amount += expense['amount']
+        
+        # Add summary
+        writer.writerow([])  # Empty row
+        writer.writerow(['Summary'])
+        writer.writerow(['Total Transactions', len(monthly_expenses)])
+        writer.writerow(['Total Amount (₹)', total_amount])
+        writer.writerow(['Average per Transaction (₹)', round(total_amount / len(monthly_expenses), 2) if monthly_expenses else 0])
+        
+        # Convert to bytes
+        output.seek(0)
+        csv_data = output.getvalue()
+        output.close()
+        
+        # Create file-like object
+        csv_file = io.BytesIO(csv_data.encode('utf-8'))
+        csv_file.seek(0)
+        
+        filename = f"Legal_Success_India_{month_name.replace(' ', '_')}_Expenses.csv"
+        
+        return send_file(
+            csv_file,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"Error generating monthly CSV: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/months', methods=['GET'])
+def get_available_months():
+    """Get list of months that have expenses"""
+    try:
+        expenses = load_local_expenses()
+        months = set()
+        
+        for expense in expenses:
+            expense_date = datetime.datetime.fromisoformat(expense['date'].replace('Z', '+00:00'))
+            month_key = f"{expense_date.year}-{expense_date.month:02d}"
+            month_name = expense_date.strftime('%B %Y')
+            months.add((month_key, month_name, expense_date.year, expense_date.month))
+        
+        # Sort by date (newest first)
+        sorted_months = sorted(months, key=lambda x: (x[2], x[3]), reverse=True)
+        
+        result = []
+        for month_key, month_name, year, month in sorted_months:
+            # Count expenses for this month
+            month_expenses = [e for e in expenses if datetime.datetime.fromisoformat(e['date'].replace('Z', '+00:00')).year == year and datetime.datetime.fromisoformat(e['date'].replace('Z', '+00:00')).month == month]
+            total_amount = sum(e['amount'] for e in month_expenses)
+            
+            result.append({
+                'key': month_key,
+                'name': month_name,
+                'year': year,
+                'month': month,
+                'count': len(month_expenses),
+                'total': total_amount
+            })
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"Error getting months: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting Legal Success India Expense Tracker API...")
