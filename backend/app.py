@@ -1,5 +1,6 @@
 import os
 import datetime
+import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -21,6 +22,31 @@ SHEET_ID = '1AS47TuW3ShC9TA8eYB_nWVG0uOPNzvN6BNZAGvlWSbI'
 users_db = {
     'arshad@legalsuccessindia.com': 'Khurshid@1997'
 }
+
+# Local storage file for expenses when Google Sheets is not available
+LOCAL_EXPENSES_FILE = 'expenses_backup.json'
+
+# --- Local Storage Functions ---
+def load_local_expenses():
+    """Load expenses from local JSON file"""
+    try:
+        if os.path.exists(LOCAL_EXPENSES_FILE):
+            with open(LOCAL_EXPENSES_FILE, 'r') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        print(f"Error loading local expenses: {e}")
+        return []
+
+def save_local_expenses(expenses):
+    """Save expenses to local JSON file"""
+    try:
+        with open(LOCAL_EXPENSES_FILE, 'w') as f:
+            json.dump(expenses, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving local expenses: {e}")
+        return False
 
 # --- Google Sheets Setup ---
 def get_google_sheet():
@@ -82,84 +108,110 @@ def login():
 @app.route('/api/expenses', methods=['GET'])
 def get_expenses():
     """
-    Fetch all expenses from Google Sheet.
+    Fetch all expenses from Google Sheet or local storage.
     """
     try:
         sheet = get_google_sheet()
-        if not sheet:
-            return jsonify({'error': 'Could not connect to Google Sheets'}), 500
+        if sheet:
+            # Try to get from Google Sheets
+            records = sheet.get_all_records()
+            formatted = []
+            for i, row in enumerate(records):
+                formatted.append({
+                    'id': str(i),
+                    'date': row.get('Date', ''),
+                    'amount': float(row.get('Amount', 0)) if row.get('Amount') else 0,
+                    'reason': row.get('Reason', ''),
+                    'timestamp': row.get('Timestamp', '')
+                })
+            return jsonify(formatted), 200
+        else:
+            # Fallback to local storage
+            print("Using local storage for expenses")
+            expenses = load_local_expenses()
+            return jsonify(expenses), 200
             
-        records = sheet.get_all_records()
-        # Ensure ID exists, if not generate one or use index
-        formatted = []
-        for i, row in enumerate(records):
-            formatted.append({
-                'id': str(i), # Using index as ID for simplicity
-                'date': row.get('Date', ''),
-                'amount': float(row.get('Amount', 0)) if row.get('Amount') else 0,
-                'reason': row.get('Reason', ''),
-                'timestamp': row.get('Timestamp', '')
-            })
-        return jsonify(formatted), 200
     except Exception as e:
-        print(f"Error fetching expenses: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error fetching expenses from Google Sheets, using local storage: {e}")
+        # Fallback to local storage
+        expenses = load_local_expenses()
+        return jsonify(expenses), 200
 
 @app.route('/api/add-expense', methods=['POST'])
 def add_expense():
     """
-    Add a new row to Google Sheet.
-    Structure: Date | Amount | Reason | Timestamp
+    Add a new expense to Google Sheet or local storage.
     """
     data = request.get_json()
     
+    # Create expense object
+    expense = {
+        'id': str(len(load_local_expenses())),  # Simple ID generation
+        'date': data['date'],
+        'amount': float(data['amount']),
+        'reason': data['reason'],
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    
     try:
         sheet = get_google_sheet()
-        if not sheet:
-            return jsonify({'error': 'Could not connect to Google Sheets'}), 500
+        if sheet:
+            # Try to add to Google Sheets
+            if sheet.row_count == 0:
+                sheet.append_row(['Date', 'Amount', 'Reason', 'Timestamp'])
+            
+            row_data = [
+                expense['date'],
+                expense['amount'],
+                expense['reason'],
+                expense['timestamp']
+            ]
+            sheet.append_row(row_data)
+            print("Expense added to Google Sheets")
+        else:
+            print("Google Sheets not available, using local storage")
         
-        # Ensure the sheet has headers if it's empty
-        if sheet.row_count == 0:
-            sheet.append_row(['Date', 'Amount', 'Reason', 'Timestamp'])
+        # Always save to local storage as backup
+        expenses = load_local_expenses()
+        expenses.append(expense)
+        save_local_expenses(expenses)
         
-        row_data = [
-            data['date'],
-            data['amount'],
-            data['reason'],
-            datetime.datetime.now().isoformat()
-        ]
+        return jsonify({'message': 'Expense added successfully', 'data': expense}), 201
         
-        sheet.append_row(row_data)
-        
-        return jsonify({'message': 'Expense added successfully', 'data': data}), 201
     except Exception as e:
-        print(f"Error adding expense: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error adding to Google Sheets, saved locally: {e}")
+        # Save to local storage as fallback
+        expenses = load_local_expenses()
+        expenses.append(expense)
+        if save_local_expenses(expenses):
+            return jsonify({'message': 'Expense saved locally (Google Sheets unavailable)', 'data': expense}), 201
+        else:
+            return jsonify({'error': 'Failed to save expense'}), 500
 
 @app.route('/api/expenses/<id>', methods=['DELETE'])
 def delete_expense(id):
     """
-    Delete an expense.
-    NOTE: Using index logic for this simple app. 
+    Delete an expense from Google Sheet and local storage.
     """
     try:
-        sheet = get_google_sheet()
-        if not sheet:
-            return jsonify({'error': 'Could not connect to Google Sheets'}), 500
-            
-        # Row index logic:
-        # gspread uses 1-based indexing.
-        # Header is row 1. Data starts at row 2.
-        # ID passed from frontend is the 0-based index of the data records.
-        # So, Row to delete = (ID as int) + 2.
-        row_to_delete = int(id) + 2
+        # Delete from local storage
+        expenses = load_local_expenses()
+        expenses = [exp for exp in expenses if exp['id'] != id]
+        save_local_expenses(expenses)
         
-        # Verify if row exists (basic check)
-        if row_to_delete > sheet.row_count:
-             return jsonify({'error': 'Row not found'}), 404
-
-        sheet.delete_rows(row_to_delete)
+        # Try to delete from Google Sheets if available
+        sheet = get_google_sheet()
+        if sheet:
+            try:
+                row_to_delete = int(id) + 2  # Header is row 1, data starts at row 2
+                if row_to_delete <= sheet.row_count:
+                    sheet.delete_rows(row_to_delete)
+                    print("Expense deleted from Google Sheets")
+            except Exception as e:
+                print(f"Could not delete from Google Sheets: {e}")
+        
         return jsonify({'message': 'Expense deleted successfully'}), 200
+        
     except Exception as e:
         print(f"Error deleting expense: {e}")
         return jsonify({'error': str(e)}), 500
