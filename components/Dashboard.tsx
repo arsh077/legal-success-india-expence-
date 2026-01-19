@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
 import { expenseService } from '../services/storage';
-import { Trash2, TrendingUp, Calendar, AlertCircle, PieChart, Download } from 'lucide-react';
+import { Trash2, TrendingUp, Calendar, AlertCircle, PieChart, Download, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import DownloadModal from './DownloadModal';
 
@@ -13,6 +13,11 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{lastSync: string | null, isOnline: boolean}>({
+    lastSync: null,
+    isOnline: false
+  });
 
   // Load Data / Data load karein
   useEffect(() => {
@@ -23,6 +28,9 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         // Sort by date descending
         const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(sorted);
+        
+        // Update sync status
+        setSyncStatus(expenseService.getSyncStatus());
       } catch (error) {
         console.error("Failed to fetch expenses", error);
       } finally {
@@ -36,6 +44,38 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
     if (window.confirm('Are you sure you want to delete this expense record?')) {
       await expenseService.delete(id);
       setExpenses(prev => prev.filter(e => e.id !== id));
+      
+      // Update sync status after delete
+      setSyncStatus(expenseService.getSyncStatus());
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await expenseService.sync();
+      // Refresh data after sync
+      const data = await expenseService.getAll();
+      const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setExpenses(sorted);
+      setSyncStatus(expenseService.getSyncStatus());
+      
+      // Show success message
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded shadow-lg animate-fade-in z-50';
+      toast.innerText = 'Data synced successfully!';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    } catch (error) {
+      console.error('Sync failed:', error);
+      // Show error message
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded shadow-lg animate-fade-in z-50';
+      toast.innerText = 'Sync failed. Please try again.';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -143,7 +183,25 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         {/* Recent Transactions List */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white">Recent Expenses</h3>
+            <div className="flex items-center space-x-3">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">Recent Expenses</h3>
+              <div className="flex items-center space-x-2">
+                {syncStatus.isOnline ? (
+                  <Wifi className="h-4 w-4 text-green-500" title="Online" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-gray-400" title="Offline" />
+                )}
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white text-xs rounded transition-colors"
+                  title="Sync data between devices"
+                >
+                  <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Syncing...' : 'Sync'}
+                </button>
+              </div>
+            </div>
             <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">Latest 10</span>
           </div>
           
@@ -219,6 +277,20 @@ const Dashboard: React.FC<DashboardProps> = ({ refreshTrigger }) => {
         </div>
 
       </div>
+
+      {/* Sync Status Footer */}
+      {syncStatus.lastSync && (
+        <div className="mt-6 text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Last synced: {new Date(syncStatus.lastSync).toLocaleString()} 
+            {syncStatus.isOnline ? (
+              <span className="ml-2 text-green-500">• Online</span>
+            ) : (
+              <span className="ml-2 text-gray-400">• Offline</span>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* Download Modal */}
       <DownloadModal 

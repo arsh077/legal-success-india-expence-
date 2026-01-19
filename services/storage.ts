@@ -1,16 +1,21 @@
 import { Expense, User } from '../types';
 import { getApiUrl, isProduction } from '../config';
+import SyncStorageService from './syncStorage';
 
 /**
- * Smart storage service that automatically detects environment:
- * - Production (Hostinger): Uses localStorage (no backend required)
- * - Local development: Uses Flask backend API
+ * Smart storage service with cross-device sync:
+ * - Mobile (Production): Uses localStorage with sync capability
+ * - Laptop (Local): Uses backend with localStorage backup
+ * - Auto-sync between devices when possible
  */
 
 const API_URL = getApiUrl();
-const USE_MOCK = isProduction() || !API_URL; // Use mock for production or when no API URL
+const IS_PRODUCTION = isProduction();
 
-// Mock Data
+// Create unified sync service
+const syncService = new SyncStorageService(API_URL, IS_PRODUCTION);
+
+// Mock Data for fallback
 const MOCK_EXPENSES: Expense[] = [
   { id: '1', date: '2023-10-25', amount: 1500, reason: 'Office Stationery', timestamp: new Date().toISOString() },
   { id: '2', date: '2023-10-26', amount: 500, reason: 'Client Refreshments', timestamp: new Date().toISOString() },
@@ -19,75 +24,53 @@ const MOCK_EXPENSES: Expense[] = [
 
 export const authService = {
   login: async (email: string, password: string): Promise<User> => {
-    // Mock login logic
-    if (USE_MOCK) {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          if (email && password) {
-            resolve({ email, name: 'Admin User', token: 'mock-jwt-token' });
-          } else {
-            reject(new Error('Invalid credentials'));
-          }
-        }, 800);
-      });
-    }
-    
-    // Real API Call to Flask
-    const res = await fetch(`${API_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) throw new Error('Login failed');
-    return res.json();
+    return syncService.login(email, password);
   },
 
   logout: () => {
-    localStorage.removeItem('user_session');
+    syncService.logout();
   }
 };
 
 export const expenseService = {
   getAll: async (): Promise<Expense[]> => {
-    if (USE_MOCK) {
-      const stored = localStorage.getItem('expenses');
-      return stored ? JSON.parse(stored) : MOCK_EXPENSES;
+    try {
+      return await syncService.getAll();
+    } catch (error) {
+      console.error('Error getting expenses:', error);
+      return MOCK_EXPENSES;
     }
-
-    const res = await fetch(`${API_URL}/expenses`);
-    return res.json();
   },
 
   add: async (expense: Omit<Expense, 'id' | 'timestamp'>): Promise<Expense> => {
-    const newExpense: Expense = {
-      ...expense,
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date().toISOString()
-    };
-
-    if (USE_MOCK) {
-      const current = await expenseService.getAll();
-      const updated = [newExpense, ...current];
-      localStorage.setItem('expenses', JSON.stringify(updated));
-      return new Promise((resolve) => setTimeout(() => resolve(newExpense), 500));
+    try {
+      return await syncService.add(expense);
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      throw error;
     }
-
-    const res = await fetch(`${API_URL}/add-expense`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(expense),
-    });
-    return res.json();
   },
 
   delete: async (id: string): Promise<void> => {
-    if (USE_MOCK) {
-      const current = await expenseService.getAll();
-      const updated = current.filter(e => e.id !== id);
-      localStorage.setItem('expenses', JSON.stringify(updated));
-      return;
+    try {
+      await syncService.delete(id);
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      throw error;
     }
+  },
 
-    await fetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
+  // Manual sync function
+  sync: async (): Promise<void> => {
+    try {
+      await syncService.syncData();
+    } catch (error) {
+      console.error('Sync failed:', error);
+    }
+  },
+
+  // Get sync status
+  getSyncStatus: () => {
+    return syncService.getSyncStatus();
   }
 };
