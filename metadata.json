@@ -1,0 +1,5 @@
+{
+  "name": "Legal Success India Expense Tracker",
+  "description": "A secure, responsive business expense tracker for Legal Success India. Features Google Sheets integration, secure authentication, and a modern dashboard.",
+  "requestFramePermissions": []
+}
